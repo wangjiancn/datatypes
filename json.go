@@ -114,6 +114,8 @@ type JSONQueryExpression struct {
 	equalsValue interface{}
 	extract     bool
 	path        string
+	useJsonb    bool
+	rawSql      string
 }
 
 // JSONQuery query column as json
@@ -148,6 +150,13 @@ func (jsonQuery *JSONQueryExpression) Likes(value interface{}, keys ...string) *
 	jsonQuery.keys = keys
 	jsonQuery.likes = true
 	jsonQuery.equalsValue = value
+	return jsonQuery
+}
+
+// Jsonb return clause.Expression
+func (jsonQuery *JSONQueryExpression) Jsonb(sql string) *JSONQueryExpression {
+	jsonQuery.useJsonb = true
+	jsonQuery.rawSql = sql
 	return jsonQuery
 }
 
@@ -200,6 +209,10 @@ func (jsonQuery *JSONQueryExpression) Build(builder clause.Builder) {
 			}
 		case "postgres":
 			switch {
+			case jsonQuery.useJsonb:
+				stmt.WriteQuoted(jsonQuery.column)
+				stmt.WriteString("::jsonb ")
+				stmt.WriteString(jsonQuery.rawSql)
 			case jsonQuery.extract:
 				builder.WriteString(fmt.Sprintf("json_extract_path_text(%v::json,", stmt.Quote(jsonQuery.column)))
 				stmt.AddVar(builder, jsonQuery.path)
@@ -469,7 +482,7 @@ func (json *JSONArrayExpression) Build(builder clause.Builder) {
 			builder.WriteString("))")
 		case "postgres":
 			builder.WriteString(stmt.Quote(json.column))
-			builder.WriteString("::jsonb ?")
+			builder.WriteString("::jsonb @@")
 			builder.AddVar(stmt, json.equalsValue)
 		}
 	}
